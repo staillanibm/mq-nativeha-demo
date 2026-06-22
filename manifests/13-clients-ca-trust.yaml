@@ -1,0 +1,25 @@
+# The queue manager must trust the Clients CA to validate the mutual-TLS
+# client certificates presented on TEST.SVRCONN. We obtain that CA's public
+# certificate declaratively: a throwaway Certificate signed by clients-ca-issuer
+# carries the issuing CA in its secret's ca.crt. That ca.crt is then referenced
+# by spec.pki.trust on the QueueManager.
+#
+# NOTE: the operator only imports trust items whose key name ends in ".crt".
+# The tls secret produced by cert-manager already exposes "ca.crt", so it can
+# be referenced directly.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: clients-ca-trust
+  namespace: ibm-mq
+spec:
+  secretName: clients-ca-trust-tls
+  commonName: clients-ca-trust
+  issuerRef:
+    name: clients-ca-issuer
+    kind: ClusterIssuer
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - client auth

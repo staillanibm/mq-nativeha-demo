@@ -1,0 +1,80 @@
+# Client certificates for the producer and consumer test apps. Each is signed
+# by clients-ca-issuer (see manifests/03-clients-ca-cert.yaml in the parent
+# repo) and its CN is what the queue manager's CHLAUTH SSLPEERMAP matches on
+# to assign the corresponding MCAUSER — see manifests/15-mqsc-configmap.yaml.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mq-test-producer
+  namespace: mq-test
+spec:
+  commonName: mq-test-producer
+  secretName: mq-test-producer-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: clients-ca-issuer
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth
+  keystores:
+    pkcs12:
+      create: true
+      passwordSecretRef:
+        name: client-keystore-password
+        key: password
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mq-test-consumer
+  namespace: mq-test
+spec:
+  commonName: mq-test-consumer
+  secretName: mq-test-consumer-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: clients-ca-issuer
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth
+  keystores:
+    pkcs12:
+      create: true
+      passwordSecretRef:
+        name: client-keystore-password
+        key: password
+---
+# Not a real "client" certificate — this Certificate only exists to make
+# cert-manager produce a PKCS12 truststore (via keystores.pkcs12) containing
+# the Servers CA, so the Java apps can validate the queue manager's TLS
+# certificate. Signed by servers-ca-issuer so its ca.crt is the Servers CA.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mq-server-truststore
+  namespace: mq-test
+spec:
+  commonName: mq-server-truststore
+  secretName: mq-server-truststore-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: servers-ca-issuer
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - client auth
+  keystores:
+    pkcs12:
+      create: true
+      passwordSecretRef:
+        name: server-truststore-password
+        key: password

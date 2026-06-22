@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mq-nativeha-ini
+  namespace: ibm-mq
+data:
+  # SecurityPolicy=UserExternal (MQ 9.3+) lets the OAM grant authority records
+  # to application user names that do NOT exist as OS accounts in the container.
+  # This is what allows fine-grained, per-role queue authorization for the
+  # certificate-mapped MCAUSERs (app-producer / app-consumer) under the
+  # OpenShift restricted-v2 SCC (random non-deterministic UID, no OS users,
+  # no group 0, no LDAP). Such external users belong to no group except nobody.
+  qm.ini: |
+    Service:
+       Name=AuthorizationService
+       SecurityPolicy=UserExternal

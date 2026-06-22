@@ -1,0 +1,6 @@
+.claude
+.DS_Store
+target/
+*.class
+*.jar
+*secret*.y*ml

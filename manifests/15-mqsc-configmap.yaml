@@ -1,0 +1,16 @@
+apiVersion: v1
+data:
+  app-definitions.mqsc: |
+    DEFINE QLOCAL('TEST.QUEUE') REPLACE DESCR('Application test queue for producer/consumer testing')
+    DEFINE CHANNEL('TEST.SVRCONN') CHLTYPE(SVRCONN) REPLACE TRPTYPE(TCP) SSLCAUTH(REQUIRED) SSLCIPH(ANY_TLS12_OR_HIGHER) DESCR('Dedicated SVRCONN for mq-test producer/consumer')
+    SET CHLAUTH('TEST.SVRCONN') TYPE(ADDRESSMAP) ADDRESS('*') USERSRC(NOACCESS) DESCR('Deny by default on this channel') ACTION(REPLACE)
+    SET CHLAUTH('TEST.SVRCONN') TYPE(SSLPEERMAP) SSLPEER('CN=mq-test-producer') USERSRC(MAP) MCAUSER('app-producer') DESCR('Allow only the mq-test producer certificate') ACTION(REPLACE)
+    SET CHLAUTH('TEST.SVRCONN') TYPE(SSLPEERMAP) SSLPEER('CN=mq-test-consumer') USERSRC(MAP) MCAUSER('app-consumer') DESCR('Allow only the mq-test consumer certificate') ACTION(REPLACE)
+    SET AUTHREC PRINCIPAL('app-producer') OBJTYPE(QMGR) AUTHADD(CONNECT,INQ)
+    SET AUTHREC PROFILE('TEST.QUEUE') PRINCIPAL('app-producer') OBJTYPE(QUEUE) AUTHADD(PUT)
+    SET AUTHREC PRINCIPAL('app-consumer') OBJTYPE(QMGR) AUTHADD(CONNECT,INQ)
+    SET AUTHREC PROFILE('TEST.QUEUE') PRINCIPAL('app-consumer') OBJTYPE(QUEUE) AUTHADD(GET,BROWSE,INQ)
+kind: ConfigMap
+metadata:
+  name: mq-nativeha-mqsc
+  namespace: ibm-mq

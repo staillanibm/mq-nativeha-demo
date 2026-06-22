@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mq-test-consumer
+  namespace: mq-test
+  labels:
+    app: mq-test-consumer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mq-test-consumer
+  template:
+    metadata:
+      labels:
+        app: mq-test-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: image-registry.openshift-image-registry.svc:5000/mq-test/mq-test:latest
+          env:
+            - name: ROLE
+              value: consumer
+            - name: MQ_KEYSTORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: client-keystore-password
+                  key: password
+            - name: MQ_TRUSTSTORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: server-truststore-password
+                  key: password
+          envFrom:
+            - configMapRef:
+                name: mq-test-config
+          volumeMounts:
+            - name: keystore
+              mountPath: /etc/mq-test/keystore
+              readOnly: true
+            - name: truststore
+              mountPath: /etc/mq-test/truststore
+              readOnly: true
+      volumes:
+        - name: keystore
+          secret:
+            secretName: mq-test-consumer-tls
+        - name: truststore
+          secret:
+            secretName: mq-server-truststore-tls

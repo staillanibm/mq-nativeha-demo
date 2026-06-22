@@ -1,0 +1,26 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: clients-ca-issuer
+spec:
+  ca:
+    secretName: clients-ca-secret
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: clients-ca
+  namespace: cert-manager
+spec:
+  commonName: Clients CA
+  duration: 87600h
+  isCA: true
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: selfsigned-issuer
+  privateKey:
+    algorithm: RSA
+    size: 4096
+  renewBefore: 720h
+  secretName: clients-ca-secret

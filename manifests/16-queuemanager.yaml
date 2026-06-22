@@ -1,0 +1,41 @@
+apiVersion: mq.ibm.com/v1beta1
+kind: QueueManager
+metadata:
+  name: mq-nativeha
+  namespace: ibm-mq
+spec:
+  license:
+    accept: true
+    license: L-QWBN-T3PKLE
+    use: NonProduction
+  queueManager:
+    availability:
+      type: NativeHA
+      tls:
+        secretName: mq-nativeha-server-tls
+    mqsc:
+      - configMap:
+          name: mq-nativeha-mqsc
+          items:
+            - app-definitions.mqsc
+    ini:
+      - configMap:
+          name: mq-nativeha-ini
+          items:
+            - qm.ini
+  pki:
+    keys:
+      - name: default
+        secret:
+          secretName: mq-nativeha-server-tls
+          items:
+            - tls.key
+            - tls.crt
+            - ca.crt
+    trust:
+      - name: clientsca
+        secret:
+          secretName: clients-ca-trust-tls
+          items:
+            - ca.crt
+  version: 9.4.5.1-r1

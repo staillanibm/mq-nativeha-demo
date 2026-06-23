@@ -36,6 +36,60 @@ step-by-step instructions — start there for details.
 - **End-to-end TLS** — mutual TLS through an OpenShift passthrough Route, with
   the SNI handling required to make the MQ app channel work through the router.
 
+## Native HA architecture
+
+The queue manager is deployed by the IBM MQ Operator as a three-replica
+**StatefulSet** (`mq-nativeha-ibm-mq`). The three pods form a quorum group with a
+single elected **leader** (`Active`) and two **followers** (`Replica`); together
+they implement Native HA — MQ's built-in, storage-independent replication, with
+no shared volume between pods.
+
+![Native HA architecture](manifests/native-ha-architecture.drawio)
+
+> Open [`manifests/native-ha-architecture.drawio`](manifests/native-ha-architecture.drawio)
+> with [diagrams.net](https://app.diagrams.net/) (or the VS Code Draw.io
+> extension) to view/edit the diagram.
+
+**Pods and storage.** Each pod runs one `qmgr` container and binds its own
+**`ReadWriteOnce`** PVC (`data-mq-nativeha-ibm-mq-{0,1,2}`), provisioned per pod
+from the StatefulSet's `volumeClaimTemplate`. Because each replica keeps a full,
+independently-replicated copy of the queue manager's data, RWO block storage is
+sufficient — there is no shared `ReadWriteMany` filesystem.
+
+**Roles — leader vs followers.** Exactly one pod is the leader and owns the live
+queue manager; the followers stay in lock-step. The leader streams its recovery
+log to the followers over the replica services
+(`mq-nativeha-ibm-mq-replica-{0,1,2}`, port **9414**); a write is acknowledged
+only once a quorum (2 of 3) has it, so a follower can take over with no data
+loss.
+
+**Health probes.** The container exposes three MQ-native probes that the operator
+wires in:
+
+- `chkmqstarted` (**startup**) — gates the other probes until MQ has come up.
+- `chkmqhealthy` (**liveness**) — restarts a pod whose queue manager is unhealthy.
+- `chkmqready` (**readiness**) — **passes only on the leader**. This is the
+  linchpin of client routing: followers are intentionally *Not Ready*, so they
+  are never an endpoint of the client Service.
+
+**TLS and ports.** TLS is **terminated at the pod**, not at the router: each
+`qmgr` container serves the MQ app channel on port **1414** over TLS (server
+cert from `mq-nativeha-server-tls`, client certs trusted via the clients CA).
+Ports 9414 (replication) and 9157 (metrics) are internal.
+
+**Client routing.** The client Service `mq-nativeha-ibm-mq` (ClusterIP, port
+**1414**) selects only the **Ready** pod — i.e. the leader — so client traffic
+always lands on the active instance. Externally, the Route
+`mq-nativeha-ibm-mq-qm` is **TLS passthrough on port 443** → Service 1414; the
+router forwards encrypted bytes untouched, so the end-to-end mutual TLS
+handshake happens directly between the client and the leader pod.
+
+**Failover.** If the leader pod or node fails, its readiness drops, the Service
+removes it as an endpoint, the remaining followers elect a new leader, that pod
+becomes Ready, and the Service repoints to it — all automatically. Clients
+reconnect transparently via the MQ client library's built-in automatic
+reconnection.
+
 ## Quick start
 
 All steps assume `oc` is logged into the target OpenShift cluster.

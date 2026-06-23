@@ -25,9 +25,19 @@ them before reuse.
 
 `ini` and `mqsc` are only re-applied by the operator when the queue manager
 (re)starts. If you edit `14-ini-configmap.yaml` or `15-mqsc-configmap.yaml`
-after the QueueManager already exists, you must restart the pods
-(`oc delete pod -n ibm-mq -l app.kubernetes.io/instance=mq-nativeha`) for the
-change to take effect — there is no live reload.
+after the QueueManager already exists, the operator must roll the pods for the
+change to take effect — there is no live reload. Don't `oc rollout restart` the
+StatefulSet directly (that bypasses the operator); instead trigger the roll
+through the `QueueManager` CR by bumping an annotation, e.g.:
+
+```bash
+oc annotate queuemanager mq-nativeha -n ibm-mq \
+  mq.ibm.com/restartedAt="$(date -u +%FT%TZ)" --overwrite
+```
+
+The operator detects the change and performs an ordered, quorum-aware rolling
+update — restarting the pods one at a time and waiting for each to rejoin as a
+`REPLICA` before continuing.
 
 ### Generating `11-pull-secret.yaml`
 
@@ -142,6 +152,32 @@ manual edit on a running pod is wiped out on the next Native HA failover (the
 operator regenerates `qm.ini` from the ConfigMap), this must always be set via
 `spec.queueManager.ini` from the queue manager's creation — not patched in
 later.
+
+### 5. Toward a more dynamic model
+
+As implemented, identities are static — one `SSLPEERMAP` and one `AUTHREC` set
+per client, baked into the MQSC ConfigMap. This is a design choice for this demo,
+not an MQ-on-Kubernetes constraint: `SET CHLAUTH`/`SET AUTHREC` are dynamic and
+the restart only comes from the operator replaying the ConfigMap at boot.
+
+Possible improvements toward a role-based (RBAC) model:
+
+- [ ] Map roles from an attribute of the client cert's DN (e.g. `OU=producer`).
+- [ ] Externalize authentication to an external LDAP directory.
+- [ ] Externalize authentication to an external IdP via OIDC + JWKS, using a
+  token claim to assign the role.
+
+In all cases the operator can still apply `runmqsc` live to add config. Such
+config is persisted in the queue manager's data — and replicated across the
+Native HA instances — so it is not lost on restart. The caveat is GitOps drift:
+the operator replays the ConfigMap MQSC at the next (re)start, so live changes
+and the declarative source can diverge. Two ways to handle this:
+
+1. **Reconcile** live changes back into the ConfigMap, keeping it the single
+   source of truth for the full configuration.
+2. **Draw a clear boundary** between what is managed as config-as-code (the
+   stable baseline) and what is managed dynamically at runtime — and never let
+   the ConfigMap define the dynamic part, so a replay cannot overwrite it.
 
 ## Verifying the IAM configuration
 

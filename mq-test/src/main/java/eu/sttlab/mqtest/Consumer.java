@@ -36,29 +36,38 @@ public final class Consumer {
         long lastReceiveAt = System.currentTimeMillis();
 
         while (true) {
-            Message message = consumer.receive(5000);
-            long now = System.currentTimeMillis();
+            try {
+                Message message = consumer.receive(5000);
+                long now = System.currentTimeMillis();
 
-            if (message == null) {
-                long idleMillis = now - lastReceiveAt;
-                if (idleMillis > 5000) {
-                    log("NO_MESSAGE idleMillis=" + idleMillis + " (possible failover in progress)");
+                if (message == null) {
+                    long idleMillis = now - lastReceiveAt;
+                    if (idleMillis > 5000) {
+                        log("NO_MESSAGE idleMillis=" + idleMillis + " (possible failover in progress)");
+                    }
+                    continue;
                 }
-                continue;
-            }
 
-            long gapMillis = now - lastReceiveAt;
-            lastReceiveAt = now;
+                long gapMillis = now - lastReceiveAt;
+                lastReceiveAt = now;
 
-            long seq = message.getLongProperty("seq");
-            String body = (message instanceof TextMessage tm) ? tm.getText() : message.toString();
+                long seq = message.getLongProperty("seq");
+                String body = (message instanceof TextMessage tm) ? tm.getText() : message.toString();
 
-            checkOrdering(seq);
+                checkOrdering(seq);
 
-            if (gapMillis > 3000) {
-                log("RECEIVED " + body + " gapMillis=" + gapMillis + " (gap suggests reconnection/failover happened)");
-            } else {
-                log("RECEIVED " + body);
+                if (gapMillis > 3000) {
+                    log("RECEIVED " + body + " gapMillis=" + gapMillis + " (gap suggests reconnection/failover happened)");
+                } else {
+                    log("RECEIVED " + body);
+                }
+            } catch (JMSException e) {
+                // A connection broken mid-receive (e.g. a Native HA failover) surfaces
+                // here — often as MQRC_BACKED_OUT on the implicit post-consume commit.
+                // The MQ client library reconnects automatically; the uncommitted
+                // message is rolled back and redelivered, so we just log and retry
+                // rather than letting the exception kill the process.
+                log("RECEIVE_FAILED reason=" + e.getMessage() + " (will retry; message redelivered if rolled back)");
             }
         }
     }

@@ -44,7 +44,7 @@ single elected **leader** (`Active`) and two **followers** (`Replica`); together
 they implement Native HA — MQ's built-in, storage-independent replication, with
 no shared volume between pods.
 
-![Native HA architecture](manifests/native-ha-architecture.drawio)
+![Native HA architecture](native-ha-architecture.drawio.png)
 
 > Open [`manifests/native-ha-architecture.drawio`](manifests/native-ha-architecture.drawio)
 > with [diagrams.net](https://app.diagrams.net/) (or the VS Code Draw.io

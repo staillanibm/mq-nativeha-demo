@@ -21,6 +21,10 @@ spec:
           env:
             - name: ROLE
               value: producer
+            # Burst faster than the consumer drains (see RECEIVE_INTERVAL_MILLIS on
+            # the consumer) so the queue accumulates a backlog before a failover.
+            - name: SEND_INTERVAL_MILLIS
+              value: "20"
             - name: MQ_KEYSTORE_PASSWORD
               valueFrom:
                 secretKeyRef:

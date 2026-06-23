@@ -4,3 +4,4 @@ target/
 *.class
 *.jar
 *secret*.y*ml
+*.bkp

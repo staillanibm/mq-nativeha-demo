@@ -61,6 +61,12 @@ public final class Consumer {
                 } else {
                     log("RECEIVED " + body);
                 }
+
+                // Optional throttle (RECEIVE_INTERVAL_MILLIS) to drain slower than the
+                // producer and let a backlog build up in the queue.
+                if (config.receiveIntervalMillis() > 0) {
+                    Thread.sleep(config.receiveIntervalMillis());
+                }
             } catch (JMSException e) {
                 // A connection broken mid-receive (e.g. a Native HA failover) surfaces
                 // here — often as MQRC_BACKED_OUT on the implicit post-consume commit.

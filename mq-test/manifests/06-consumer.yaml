@@ -21,6 +21,10 @@ spec:
           env:
             - name: ROLE
               value: consumer
+            # Drain slower than the producer so a backlog builds up in the queue,
+            # making the no-message-loss proof across a failover meaningful.
+            - name: RECEIVE_INTERVAL_MILLIS
+              value: "200"
             - name: MQ_KEYSTORE_PASSWORD
               valueFrom:
                 secretKeyRef:

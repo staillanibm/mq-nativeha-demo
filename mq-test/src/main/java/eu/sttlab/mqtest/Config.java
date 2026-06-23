@@ -14,6 +14,7 @@ public final class Config {
     private final String trustStorePassword;
     private final int reconnectTimeoutSeconds;
     private final long sendIntervalMillis;
+    private final long receiveIntervalMillis;
 
     private Config(Builder b) {
         this.host = b.host;
@@ -28,6 +29,7 @@ public final class Config {
         this.trustStorePassword = b.trustStorePassword;
         this.reconnectTimeoutSeconds = b.reconnectTimeoutSeconds;
         this.sendIntervalMillis = b.sendIntervalMillis;
+        this.receiveIntervalMillis = b.receiveIntervalMillis;
     }
 
     public static Config fromEnv() {
@@ -44,6 +46,11 @@ public final class Config {
         b.trustStorePassword = requiredEnv("MQ_TRUSTSTORE_PASSWORD");
         b.reconnectTimeoutSeconds = Integer.parseInt(env("MQ_RECONNECT_TIMEOUT_SECONDS", "1800"));
         b.sendIntervalMillis = Long.parseLong(env("SEND_INTERVAL_MILLIS", "1000"));
+        // Per-message consumer delay. Default 0 = drain at full speed. Set higher
+        // (e.g. with a fast/bursting producer) to build a queue backlog, so a
+        // failover hits persisted, not-yet-consumed messages — making the
+        // no-message-loss proof meaningful rather than trivial.
+        b.receiveIntervalMillis = Long.parseLong(env("RECEIVE_INTERVAL_MILLIS", "0"));
         return new Config(b);
     }
 
@@ -108,6 +115,10 @@ public final class Config {
         return sendIntervalMillis;
     }
 
+    public long receiveIntervalMillis() {
+        return receiveIntervalMillis;
+    }
+
     private static final class Builder {
         String host;
         int port;
@@ -121,5 +132,6 @@ public final class Config {
         String trustStorePassword;
         int reconnectTimeoutSeconds;
         long sendIntervalMillis;
+        long receiveIntervalMillis;
     }
 }

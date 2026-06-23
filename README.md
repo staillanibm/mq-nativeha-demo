@@ -46,10 +46,6 @@ no shared volume between pods.
 
 ![Native HA architecture](native-ha-architecture.drawio.png)
 
-> Open [`manifests/native-ha-architecture.drawio`](manifests/native-ha-architecture.drawio)
-> with [diagrams.net](https://app.diagrams.net/) (or the VS Code Draw.io
-> extension) to view/edit the diagram.
-
 **Pods and storage.** Each pod runs one `qmgr` container and binds its own
 **`ReadWriteOnce`** PVC (`data-mq-nativeha-ibm-mq-{0,1,2}`), provisioned per pod
 from the StatefulSet's `volumeClaimTemplate`. Because each replica keeps a full,

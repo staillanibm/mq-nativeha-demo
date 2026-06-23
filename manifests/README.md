@@ -39,6 +39,11 @@ The operator detects the change and performs an ordered, quorum-aware rolling
 update — restarting the pods one at a time and waiting for each to rejoin as a
 `REPLICA` before continuing.
 
+MQSC is applied additively: re-running it never removes objects or records that
+are no longer in the file — deletions must be expressed explicitly (e.g.
+`DELETE`, `ACTION(REMOVE)`). Editing a definition's key (such as a CHLAUTH
+`SSLPEER`) therefore adds a new record and leaves the old one in place.
+
 ### Generating `11-pull-secret.yaml`
 
 This file is gitignored (it contains your IBM entitlement key) — a redacted
@@ -72,19 +77,24 @@ and no external LDAP directory.
 
 ### 1. Authentication — CHLAUTH SSLPEERMAP
 
-`TEST.SVRCONN` requires client certificates (`SSLCAUTH(REQUIRED)`). Two
+`TEST.SVRCONN` requires client certificates (`SSLCAUTH(REQUIRED)`). The
 `CHLAUTH` records (`15-mqsc-configmap.yaml`) map the client certificate's
-Subject DN to an MQ user identity (`MCAUSER`):
+Subject DN to an MQ user identity (`MCAUSER`) on a **role-carrying attribute of
+the DN — the Organizational Unit (`OU`)** — rather than on the individual CN:
 
 ```
 SET CHLAUTH('TEST.SVRCONN') TYPE(ADDRESSMAP) ADDRESS('*') USERSRC(NOACCESS) ...
-SET CHLAUTH('TEST.SVRCONN') TYPE(SSLPEERMAP) SSLPEER('CN=mq-test-producer') USERSRC(MAP) MCAUSER('app-producer') ...
-SET CHLAUTH('TEST.SVRCONN') TYPE(SSLPEERMAP) SSLPEER('CN=mq-test-consumer') USERSRC(MAP) MCAUSER('app-consumer') ...
+SET CHLAUTH('TEST.SVRCONN') TYPE(SSLPEERMAP) SSLPEER('OU=producer') USERSRC(MAP) MCAUSER('app-producer') ...
+SET CHLAUTH('TEST.SVRCONN') TYPE(SSLPEERMAP) SSLPEER('OU=consumer') USERSRC(MAP) MCAUSER('app-consumer') ...
 ```
 
-The first record denies everyone by default; only a client presenting a
-certificate whose CN is exactly `mq-test-producer` or `mq-test-consumer` is
-let in, and is assigned the corresponding `MCAUSER`. The certificates
+The first record denies everyone by default; any client presenting a
+certificate whose DN carries `OU=producer` or `OU=consumer` is let in and
+assigned the corresponding `MCAUSER` — independently of its CN, which stays
+unique per client for traceability (e.g. `CN=mq-test-producer,OU=producer`).
+This is a role-based (RBAC) mapping: onboarding a new client of a given role
+only requires issuing a certificate with the right `OU`, with no MQSC change and
+no queue manager restart. The certificates
 themselves are signed by `clients-ca-issuer` (`03-clients-ca-cert.yaml`; the
 client certificates for the producer/consumer test apps are not included in
 this directory — see the `mq-test` Java client manifests). The queue manager
@@ -155,14 +165,15 @@ later.
 
 ### 5. Toward a more dynamic model
 
-As implemented, identities are static — one `SSLPEERMAP` and one `AUTHREC` set
-per client, baked into the MQSC ConfigMap. This is a design choice for this demo,
-not an MQ-on-Kubernetes constraint: `SET CHLAUTH`/`SET AUTHREC` are dynamic and
-the restart only comes from the operator replaying the ConfigMap at boot.
+Authentication is mapped per **role**, on the certificate `OU` (see §1), so
+onboarding a client of an existing role needs no MQSC change and no restart. The
+`AUTHREC` grants, however, are defined per role in the MQSC ConfigMap and only
+re-applied on restart. This is a design choice for this demo, not an
+MQ-on-Kubernetes constraint: `SET CHLAUTH`/`SET AUTHREC` are dynamic and the
+restart only comes from the operator replaying the ConfigMap at boot.
 
-Possible improvements toward a role-based (RBAC) model:
+Possible improvements toward a fully dynamic model:
 
-- [ ] Map roles from an attribute of the client cert's DN (e.g. `OU=producer`).
 - [ ] Externalize authentication to an external LDAP directory.
 - [ ] Externalize authentication to an external IdP via OIDC + JWKS, using a
   token claim to assign the role.

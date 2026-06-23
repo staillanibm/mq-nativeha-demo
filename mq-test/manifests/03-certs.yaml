@@ -1,7 +1,11 @@
 # Client certificates for the producer and consumer test apps. Each is signed
 # by clients-ca-issuer (see manifests/03-clients-ca-cert.yaml in the parent
-# repo) and its CN is what the queue manager's CHLAUTH SSLPEERMAP matches on
-# to assign the corresponding MCAUSER — see manifests/15-mqsc-configmap.yaml.
+# repo). The CN stays unique per client (traceability in MQ logs/audit), while
+# the role is carried by the certificate's OU (Organizational Unit). The queue
+# manager's CHLAUTH SSLPEERMAP matches on OU alone (SSLPEER('OU=producer') /
+# SSLPEER('OU=consumer')) to assign the corresponding MCAUSER, so onboarding a
+# new client of a given role only requires issuing a cert with the right OU —
+# no MQSC change. See manifests/15-mqsc-configmap.yaml.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -9,6 +13,9 @@ metadata:
   namespace: mq-test
 spec:
   commonName: mq-test-producer
+  subject:
+    organizationalUnits:
+      - producer
   secretName: mq-test-producer-tls
   issuerRef:
     kind: ClusterIssuer
@@ -34,6 +41,9 @@ metadata:
   namespace: mq-test
 spec:
   commonName: mq-test-consumer
+  subject:
+    organizationalUnits:
+      - consumer
   secretName: mq-test-consumer-tls
   issuerRef:
     kind: ClusterIssuer

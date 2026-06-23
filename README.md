@@ -25,9 +25,10 @@ step-by-step instructions — start there for details.
 - **Native HA** — three-replica queue manager with automatic leader election;
   clients reconnect transparently via the MQ client library's built-in
   automatic reconnection.
-- **Certificate-based authentication** — `CHLAUTH SSLPEERMAP` maps each
-  client's TLS certificate Subject DN to an MQ identity; no shared passwords or
-  CCDT-embedded secrets.
+- **Certificate-based authentication** — `CHLAUTH SSLPEERMAP` maps a client's
+  TLS certificate to an MQ identity on its role-carrying `OU` (RBAC), so a new
+  client of a given role just needs a certificate with the right `OU`; no shared
+  passwords or CCDT-embedded secrets.
 - **Fine-grained authorization** — per-principal `AUTHREC` grants restrict the
   producer to `PUT` and the consumer to `GET`/`BROWSE` on `TEST.QUEUE`.
 - **No OS users, no LDAP, no `group 0`** — `SecurityPolicy=UserExternal`

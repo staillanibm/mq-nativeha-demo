@@ -25,7 +25,12 @@ manager's app channel (passthrough TLS on port 443). See
   certificate). This is necessary because IBM's MQ JMS classes build their own
   `SSLContext` internally and **ignore** the JVM's `javax.net.ssl.*` system
   properties — setting the trust/key store via `-D` flags has no effect; the
-  `SSLSocketFactory` must be set explicitly on the `MQConnectionFactory`.
+  `SSLSocketFactory` must be set explicitly on the `MQConnectionFactory`. The
+  client certificate carries the role in its `OU` (`OU=producer` /
+  `OU=consumer`, see `manifests/03-certs.yaml`); the queue manager maps that
+  `OU` to the corresponding MQ identity, so the role is conveyed entirely by the
+  certificate — the Java code is identical for both roles and never references
+  the DN.
 - `SSLContext.getInstance("TLS")` is used rather than `"TLSv1.2"` — the latter
   is rejected by the IBM MQ client at handshake time.
 - **automatic client reconnection** is enabled

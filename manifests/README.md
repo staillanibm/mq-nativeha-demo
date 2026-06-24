@@ -21,7 +21,8 @@ them before reuse.
 | `13-clients-ca-trust.yaml` | Imports the Clients CA's public certificate into the namespace, for the queue manager to trust client certificates. |
 | `14-ini-configmap.yaml` | `qm.ini` stanza enabling `SecurityPolicy=UserExternal` — the linchpin of the IAM model, see below. |
 | `15-mqsc-configmap.yaml` | MQSC: queue/channel definitions, `CHLAUTH` cert-to-user mapping, and per-user `AUTHREC` queue authorizations. |
-| `16-queuemanager.yaml` | The `QueueManager` CR itself — Native HA, TLS, `pki.keys`/`pki.trust`, `ini`, and `mqsc` are all wired in from creation. |
+| `16-mqweb-configmap.yaml` | `mqwebuser.xml` basic registry for the MQ Console / REST API (`admin` user + `MQWebAdmin` role) — see "MQ Console" below. |
+| `17-queuemanager.yaml` | The `QueueManager` CR itself — Native HA, TLS, `pki.keys`/`pki.trust`, `ini`, `mqsc`, and `web` are all wired in from creation. |
 
 `ini` and `mqsc` are only re-applied by the operator when the queue manager
 (re)starts. If you edit `14-ini-configmap.yaml` or `15-mqsc-configmap.yaml`
@@ -206,3 +207,46 @@ echo \"DIS AUTHREC PROFILE('TEST.QUEUE') PRINCIPAL('app-consumer')\" | runmqsc m
 
 `app-producer` should show `AUTHLIST(PUT)` only; `app-consumer` should show
 `AUTHLIST(BROWSE,GET,INQ)` only.
+
+## MQ Console
+
+`16-mqweb-configmap.yaml` and the `web` section of `17-queuemanager.yaml`
+enable the MQ Console (and its underlying REST API) as a browser-based
+alternative to MQ Explorer — no desktop install, reachable through the
+OpenShift Route the operator creates automatically (`oc get route -n ibm-mq`,
+look for the `*-web` route, port 9443, login at `/ibmmq/console/`).
+
+With an MQ Advanced license (not Cloud Pak for Integration), the console's
+authentication/authorization providers default to `integration-keycloak`,
+which has nothing to authenticate against in this setup. Both must be set to
+`manual` and paired with a `basicRegistry` supplied via `web.manualConfig` —
+without it, every login fails with *"No UserRegistry implementation service
+is available"*.
+
+**The basic registry's security-role binding must be declared twice** — once
+under `enterpriseApplication id="com.ibm.mq.console"` and once under
+`id="com.ibm.mq.rest"` (`16-mqweb-configmap.yaml` does both). The console UI
+calls the REST API under the hood, and REST authorization is evaluated
+against its own, separate application binding. Binding the role only under
+`com.ibm.mq.console` produces a misleading symptom: login succeeds
+(authentication is fine), but every action then 403s with `MQWB0108E: ...
+not granted access to any of the required roles` — because `com.ibm.mq.rest`
+never got a binding at all. This is confirmed by the Liberty log
+(`/mnt/mqm/data/web/installations/Installation1/servers/mqweb/logs/messages.log`
+inside the pod), which tags the failing request with
+`"ext_appName":"com.ibm.mq.rest"`.
+
+Before applying `16-mqweb-configmap.yaml`, replace `PASSWORD_HASH` with a real
+hash, generated inside any `qmgr` pod (`java` is not on `PATH` by default):
+
+```sh
+oc exec -n ibm-mq mq-nativeha-ibm-mq-0 -- bash -c "
+  export PATH=/opt/mqm/java/jre64/jre/bin:\$PATH
+  /opt/mqm/web/bin/securityUtility encode --encoding=hash 'your-password'
+"
+```
+
+Like `ini`/`mqsc`, `web.manualConfig` is only re-read when the queue manager
+(re)starts — editing the ConfigMap after the fact requires bumping the
+`QueueManager`'s `restartedAt` annotation (see "Apply order" above) to take
+effect.

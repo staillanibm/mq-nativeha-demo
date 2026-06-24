@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mq-nativeha-mqwebuser
+  namespace: ibm-mq
+data:
+  # Without this, the MQ Console / REST API has no user registry at all
+  # (license type "MQ" defaults web.console.authentication/authorization to
+  # "manual" — see 17-queuemanager.yaml) and every login fails with
+  # "No UserRegistry implementation service is available".
+  #
+  # IMPORTANT: the security-role binding must be repeated for BOTH
+  # enterpriseApplication id="com.ibm.mq.console" AND id="com.ibm.mq.rest".
+  # The console UI calls the REST API under the hood, and REST authorization
+  # is evaluated against its own, separate application binding — a role
+  # granted only under com.ibm.mq.console produces a misleading symptom:
+  # login succeeds (authentication OK) but every action 403s with
+  # "MQWB0108E: ... not granted access to any of the required roles"
+  # (authorization fails), because com.ibm.mq.rest has no binding at all.
+  #
+  # Replace PASSWORD_HASH below with the output of (run inside the qmgr
+  # container, java is not on PATH by default):
+  #   export PATH=/opt/mqm/java/jre64/jre/bin:$PATH
+  #   /opt/mqm/web/bin/securityUtility encode --encoding=hash 'your-password'
+  mqwebuser.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <server>
+      <featureManager>
+        <feature>appSecurity-2.0</feature>
+        <feature>basicAuthenticationMQ-1.0</feature>
+      </featureManager>
+      <enterpriseApplication id="com.ibm.mq.console">
+        <application-bnd>
+          <security-role name="MQWebAdmin">
+            <group name="MQWebAdminGroup" realm="defaultRealm"/>
+          </security-role>
+        </application-bnd>
+      </enterpriseApplication>
+      <enterpriseApplication id="com.ibm.mq.rest">
+        <application-bnd>
+          <security-role name="MQWebAdmin">
+            <group name="MQWebAdminGroup" realm="defaultRealm"/>
+          </security-role>
+        </application-bnd>
+      </enterpriseApplication>
+      <basicRegistry id="basic" realm="defaultRealm">
+        <user name="admin" password="PASSWORD_HASH"/>
+        <group name="MQWebAdminGroup">
+          <member name="admin"/>
+        </group>
+      </basicRegistry>
+    </server>

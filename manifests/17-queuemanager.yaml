@@ -39,3 +39,20 @@ spec:
           items:
             - ca.crt
   version: 9.4.5.1-r1
+  # MQ Console / REST API. License type "MQ" (not Cloud Pak for Integration)
+  # defaults console/authentication providers to "integration-keycloak", which
+  # has nothing to authenticate against here — must be set to "manual" and
+  # paired with the basicRegistry in 16-mqweb-configmap.yaml, otherwise every
+  # login fails with "No UserRegistry implementation service is available".
+  web:
+    enabled: true
+    console:
+      authentication:
+        provider: manual
+      authorization:
+        provider: manual
+    manualConfig:
+      configMap:
+        name: mq-nativeha-mqwebuser
+    route:
+      enabled: true

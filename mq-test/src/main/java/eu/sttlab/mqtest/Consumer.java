@@ -27,7 +27,13 @@ public final class Consumer {
         connection.setExceptionListener(this::onException);
         connection.start();
 
-        Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+        // Transacted: message is only removed on explicit commit() after processing,
+        // so a crash before commit redelivers rather than loses it. A redelivery
+        // after a sent-but-unconfirmed commit can still surface as a duplicate,
+        // logged below as DUPLICATE_MESSAGE rather than silently absorbed. Real
+        // end-to-end exactly-once (consumer side effects atomic with the dequeue)
+        // would need 2PC/XA across both resources - not done here.
+        Session session = connection.createSession(true, Session.SESSION_TRANSACTED);
         Queue queue = session.createQueue("queue:///" + config.queue());
         MessageConsumer consumer = session.createConsumer(queue);
 
@@ -67,12 +73,16 @@ public final class Consumer {
                 if (config.receiveIntervalMillis() > 0) {
                     Thread.sleep(config.receiveIntervalMillis());
                 }
+
+                // Commit only after processing is fully done, so a crash/disconnect
+                // before this point redelivers the message instead of losing it.
+                session.commit();
             } catch (JMSException e) {
-                // A connection broken mid-receive (e.g. a Native HA failover) surfaces
-                // here — often as MQRC_BACKED_OUT on the implicit post-consume commit.
-                // The MQ client library reconnects automatically; the uncommitted
-                // message is rolled back and redelivered, so we just log and retry
-                // rather than letting the exception kill the process.
+                // A connection broken mid-receive or mid-commit (e.g. a Native HA
+                // failover) surfaces here. The MQ client library reconnects
+                // automatically; an uncommitted message is rolled back and
+                // redelivered, so we just log and retry rather than letting the
+                // exception kill the process.
                 log("RECEIVE_FAILED reason=" + e.getMessage() + " (will retry; message redelivered if rolled back)");
             }
         }
@@ -83,8 +93,10 @@ public final class Consumer {
             log("FIRST_MESSAGE seq=" + seq);
         } else if (seq == lastSeq + 1) {
             // expected, strictly increasing
-        } else if (seq <= lastSeq) {
-            log("ORDER_VIOLATION seq=" + seq + " lastSeq=" + lastSeq + " (out-of-order or duplicate)");
+        } else if (seq == lastSeq) {
+            log("DUPLICATE_MESSAGE seq=" + seq + " (redelivery after an unconfirmed commit)");
+        } else if (seq < lastSeq) {
+            log("ORDER_VIOLATION seq=" + seq + " lastSeq=" + lastSeq + " (out-of-order)");
         } else {
             log("GAP_DETECTED missingFrom=" + (lastSeq + 1) + " missingTo=" + (seq - 1) + " (message loss)");
         }

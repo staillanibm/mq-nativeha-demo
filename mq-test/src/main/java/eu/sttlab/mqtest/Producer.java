@@ -28,7 +28,12 @@ public final class Producer {
         connection.setExceptionListener(this::onException);
         connection.start();
 
-        Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+        // Transacted: commit() is only called after send() returns successfully, so
+        // a connection break is unambiguous - either the commit was confirmed and
+        // the message is durably enqueued, or it wasn't and the retry below resends
+        // the same seq. Avoids the gap a non-transacted send leaves between "broker
+        // accepted the data" and "the put is durable".
+        Session session = connection.createSession(true, Session.SESSION_TRANSACTED);
         Queue queue = session.createQueue("queue:///" + config.queue());
         MessageProducer producer = session.createProducer(queue);
         producer.setDeliveryMode(DeliveryMode.PERSISTENT);
@@ -45,6 +50,7 @@ public final class Producer {
                 TextMessage message = session.createTextMessage(body);
                 message.setLongProperty("seq", seq);
                 producer.send(message);
+                session.commit();
                 long elapsed = System.currentTimeMillis() - beforeSend;
                 if (elapsed > 2000) {
                     log("SENT seq=" + seq + " elapsedMillis=" + elapsed + " (slow send, likely failover in progress)");

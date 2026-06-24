@@ -22,5 +22,6 @@ spec:
   privateKey:
     algorithm: RSA
     size: 4096
+    rotationPolicy: Always
   renewBefore: 720h
   secretName: clients-ca-secret

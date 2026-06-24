@@ -8,13 +8,14 @@ spec:
   commonName: mq-nativeha
   dnsNames:
     - mq-nativeha
-    - "*.apps.itz-c3hv3t.hub04-lb.techzone.ibm.com"
+    - "*.apps.itz-h9zmp8.hub04-lb.techzone.ibm.com"
   issuerRef:
     name: servers-ca-issuer
     kind: ClusterIssuer
   privateKey:
     algorithm: RSA
     size: 2048
+    rotationPolicy: Always
   usages:
     - digital signature
     - key encipherment

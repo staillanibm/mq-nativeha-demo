@@ -4,7 +4,7 @@ metadata:
   name: mq-test-config
   namespace: mq-test
 data:
-  MQ_HOST: mq-nativeha-ibm-mq-qm-ibm-mq.apps.itz-c3hv3t.hub04-lb.techzone.ibm.com
+  MQ_HOST: mq-nativeha-ibm-mq-qm-ibm-mq.apps.itz-h9zmp8.hub04-lb.techzone.ibm.com
   MQ_PORT: "443"
   MQ_QMGR: mqnativeha
   MQ_CHANNEL: TEST.SVRCONN

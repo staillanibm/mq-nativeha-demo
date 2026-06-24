@@ -73,6 +73,17 @@ mq-chlauth: ## Show the active SSLPEERMAP (OU -> MCAUSER) records on the leader
 mq-logs: ## Follow the leader pod's queue manager log
 	$(KUBECTL) logs -n $(MQ_NS) -l $(QM_LABEL) -f --max-log-requests=3
 
+.PHONY: mq-mqsc
+mq-mqsc: ## Run an MQSC command on the Native HA leader, e.g. make mq-mqsc CMD="DIS QL(TEST.QUEUE) MAXDEPTH"
+	@test -n "$(CMD)" || { echo "Usage: make mq-mqsc CMD=\"<MQSC command>\""; exit 1; }
+	@LEADER=$$(for p in 0 1 2; do \
+	  $(KUBECTL) exec -n $(MQ_NS) $(QM_STS)-$$p -- bash -c \
+	    'dspmq -o nativeha 2>/dev/null | grep -q "ROLE(Active)" && echo $(QM_STS)-'$$p 2>/dev/null; \
+	  done | head -1); \
+	echo ">> leader: $$LEADER"; \
+	$(KUBECTL) exec -n $(MQ_NS) $$LEADER -- bash -c \
+	  "echo \"$(CMD)\" | runmqsc $(QM_NAME)"
+
 .PHONY: mq-undeploy
 mq-undeploy: ## Delete the QueueManager CR (keeps the operator and CAs)
 	$(KUBECTL) delete -f $(MQ_DIR)/16-queuemanager.yaml --ignore-not-found
@@ -96,6 +107,16 @@ test-restart: ## Restart producer/consumer (reload certs/keystore after re-issue
 	$(KUBECTL) rollout restart deployment/mq-test-producer deployment/mq-test-consumer -n $(TEST_NS)
 	$(KUBECTL) rollout status deployment/mq-test-producer -n $(TEST_NS) --timeout=120s
 	$(KUBECTL) rollout status deployment/mq-test-consumer -n $(TEST_NS) --timeout=120s
+
+.PHONY: test-scale-producer
+test-scale-producer: ## Scale the producer deployment, e.g. make test-scale-producer REPLICAS=0
+	@test -n "$(REPLICAS)" || { echo "Usage: make test-scale-producer REPLICAS=<n>"; exit 1; }
+	$(KUBECTL) scale deployment/mq-test-producer -n $(TEST_NS) --replicas=$(REPLICAS)
+
+.PHONY: test-scale-consumer
+test-scale-consumer: ## Scale the consumer deployment, e.g. make test-scale-consumer REPLICAS=0
+	@test -n "$(REPLICAS)" || { echo "Usage: make test-scale-consumer REPLICAS=<n>"; exit 1; }
+	$(KUBECTL) scale deployment/mq-test-consumer -n $(TEST_NS) --replicas=$(REPLICAS)
 
 .PHONY: test-status
 test-status: ## Show producer/consumer pods

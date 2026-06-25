@@ -6,9 +6,8 @@ metadata:
 data:
   MQ_HOST: mq-nativeha-ibm-mq-qm-ibm-mq.apps.itz-h9zmp8.hub04-lb.techzone.ibm.com
   MQ_PORT: "443"
-  MQ_QMGR: mqnativeha
+  MQ_QMGR: MQNATIVEHA
   MQ_CHANNEL: TEST.SVRCONN
   MQ_QUEUE: TEST.QUEUE
   MQ_KEYSTORE_PATH: /etc/mq-test/keystore/keystore.p12
   MQ_TRUSTSTORE_PATH: /etc/mq-test/truststore/truststore.p12
-  SEND_INTERVAL_MILLIS: "1000"

@@ -4,11 +4,18 @@ metadata:
   name: mq-nativeha
   namespace: ibm-mq
 spec:
+  imagePullSecrets:
+    - name: ibm-entitlement-key
   license:
     accept: true
     license: L-QWBN-T3PKLE
     use: NonProduction
   queueManager:
+    image: cp.icr.io/cp/ibm-mqadvanced-server@sha256:7b69ef7c554ced9825b450209c304669626082282b9f5eb021b051acea49a1a0
+    # Underlying MQ queue manager name, kept distinct from metadata.name
+    # because it doesn't have to follow Kubernetes naming rules (e.g. it can
+    # use uppercase letters, which metadata.name cannot).
+    name: MQNATIVEHA
     availability:
       type: NativeHA
       tls:

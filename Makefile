@@ -13,7 +13,7 @@ KUBECTL       ?= oc
 MQ_NS         ?= ibm-mq
 MQ_DIR        ?= manifests
 QM            ?= mq-nativeha
-QM_NAME       ?= mqnativeha
+QM_NAME       ?= MQNATIVEHA
 QM_STS        ?= mq-nativeha-ibm-mq
 QM_ROUTE      ?= mq-nativeha-ibm-mq-qm
 QM_LABEL      ?= app.kubernetes.io/instance=mq-nativeha

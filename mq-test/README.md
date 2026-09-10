@@ -128,7 +128,23 @@ This must be re-run any time the Java source or `Dockerfile` changes — the
 running Deployments use `imagePullPolicy: Always` but only pick up a new image
 on pod restart, not automatically.
 
-### 3. Point the apps at the queue manager and deploy
+### 3. Ensure TEST.QUEUE exists on the queue manager
+
+The parent repo's `manifests/15-mqsc-configmap.yaml` only defines the
+`TEST.SVRCONN` channel, CHLAUTH mappings, and AUTHREC grants — it does not
+define `TEST.QUEUE` itself. If it doesn't already exist, create it directly
+on the running queue manager:
+
+```sh
+oc exec -n ibm-mq mq-nativeha-ibm-mq-0 -- bash -c "
+echo \"DEFINE QLOCAL('TEST.QUEUE') REPLACE DESCR('Application test queue for producer/consumer testing')\" | runmqsc MQNATIVEHA
+"
+```
+
+Without this, the producer and consumer fail immediately on startup with
+`MQRC_UNKNOWN_OBJECT_NAME` (2085) and crash-loop.
+
+### 4. Point the apps at the queue manager and deploy
 
 Edit `manifests/04-config.yaml` if needed — in particular `MQ_HOST` (the
 queue manager's Route hostname) and `MQ_QMGR` (the queue manager name) must
@@ -146,7 +162,7 @@ oc apply -f manifests/05-producer.yaml
 oc apply -f manifests/06-consumer.yaml
 ```
 
-### 4. Confirm both are connected and exchanging messages
+### 5. Confirm both are connected and exchanging messages
 
 ```sh
 oc get pods -n mq-test -l 'app in (mq-test-producer,mq-test-consumer)'
@@ -162,7 +178,7 @@ with a TLS handshake error, see the IAM and TLS sections of the parent repo's
 `manifests/README.md` — the queue manager-side configuration is the most
 likely cause, not this client.
 
-### 5. Trigger a Native HA failover and validate ordering
+### 6. Trigger a Native HA failover and validate ordering
 
 Identify the current leader (the only `1/1 Ready` pod) and delete it:
 
@@ -185,7 +201,7 @@ resuming once a new leader is elected — with no `ORDER_VIOLATION` or
 gapMillis=...` line over 3000 ms marks where the failover happened in the
 sequence.
 
-### 6. Validate ordering quantitatively
+### 7. Validate ordering quantitatively
 
 Extract the consumed sequence numbers and check for gaps or out-of-order
 transitions:
@@ -205,3 +221,14 @@ print('gaps/out-of-order transitions:', bad)
 `bad` should be empty: every sequence number from the first to the last
 received appears exactly once, in order, regardless of how many times the
 Native HA leader failed over during the run.
+
+### 8. Tear down the producer and consumer
+
+Scale both Deployments to zero to stop message flow without deleting them
+(config, certs, and Deployment specs are kept, so scaling back up to 1
+resumes the test):
+
+```sh
+oc scale deployment/mq-test-producer -n mq-test --replicas=0
+oc scale deployment/mq-test-consumer -n mq-test --replicas=0
+```

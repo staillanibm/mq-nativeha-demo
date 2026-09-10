@@ -11,7 +11,7 @@ them before reuse.
 
 | File | Purpose |
 |---|---|
-| `00-mq-operator-csv.yaml` | Subscribes to the IBM MQ Operator. |
+| `00-mq-operator-csv.yaml` | Create the IBM MQ catalog source and subscribes to the IBM MQ Operator. |
 | `01-root-ca-issuer.yaml` | Self-signed root `ClusterIssuer`, used only to bootstrap the Servers CA. |
 | `02-server-ca-cert.yaml` | `servers-ca-issuer` ClusterIssuer + its CA `Certificate` — signs the queue manager's server certificate. |
 | `03-clients-ca-cert.yaml` | `clients-ca-issuer` ClusterIssuer + its CA `Certificate` — signs client (producer/consumer) certificates. |
@@ -195,13 +195,12 @@ and the declarative source can diverge. Two ways to handle this:
 
 ```sh
 # Confirm SecurityPolicy is active on the running queue manager
-oc exec -n ibm-mq mq-nativeha-ibm-mq-0 -- \
-  grep -A2 'Name=AuthorizationService' /mnt/mqm/data/qmgrs/*/qm.ini
+oc exec -n ibm-mq mq-nativeha-ibm-mq-0 -- bash -c "grep -A2 'Name=AuthorizationService' /mnt/mqm/data/qmgrs/*/qm.ini"
 
 # Confirm the per-role authorizations took effect
 oc exec -n ibm-mq mq-nativeha-ibm-mq-0 -- bash -c "
-echo \"DIS AUTHREC PROFILE('TEST.QUEUE') PRINCIPAL('app-producer')\" | runmqsc mqnativeha
-echo \"DIS AUTHREC PROFILE('TEST.QUEUE') PRINCIPAL('app-consumer')\" | runmqsc mqnativeha
+echo \"DIS AUTHREC PROFILE('TEST.QUEUE') PRINCIPAL('app-producer')\" | runmqsc MQNATIVEHA
+echo \"DIS AUTHREC PROFILE('TEST.QUEUE') PRINCIPAL('app-consumer')\" | runmqsc MQNATIVEHA
 "
 ```
 

@@ -1,0 +1,121 @@
+# Client connection definition (JSON CCDT) going through the passthrough Route,
+# the script that builds the CMS keystore (key.kdb) the MQI samples need from
+# the PKCS12 keystore produced by cert-manager, and the launchers of the samples.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hac-ccdt
+  namespace: ibm-mq
+data:
+  ccdt.json: |
+    {
+      "channel": [
+        {
+          "name": "TEST.SVRCONN",
+          "type": "clientConnection",
+          "clientConnection": {
+            "connection": [
+              { "host": "mq-nativeha-ibm-mq-qm-ibm-mq.apps.itz-mps0y7.hub04-lb.techzone.ibm.com", "port": 443 }
+            ],
+            "queueManager": "MQNATIVEHA"
+          },
+          "transmissionSecurity": {
+            "cipherSpecification": "ANY_TLS12_OR_HIGHER",
+            "certificateLabel": "mqclient"
+          }
+        }
+      ]
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hac-scripts
+  namespace: ibm-mq
+data:
+  build-kdb.sh: |
+    #!/bin/bash
+    set -e
+    export PATH=$PATH:/opt/mqm/bin
+    db=/tls/key.kdb
+    runmqakm -keydb -create -db $db -pw "$PW" -type cms -stash
+    runmqakm -cert -import -file /in/keystore.p12 -pw "$PW" -type pkcs12 \
+      -target $db -target_pw "$PW" -target_type cms
+    # the imported personal certificate keeps its DN as label: rename it to the
+    # label referenced by the CCDT (certificateLabel)
+    personal=$(runmqakm -cert -list personal -db $db -pw "$PW" | sed -n 's/^[-!*#]*[[:space:]]*//p' | grep '^CN=' | head -1)
+    runmqakm -cert -rename -db $db -pw "$PW" -label "$personal" -new_label mqclient
+    runmqakm -cert -add -db $db -pw "$PW" -label serverca -file /ca/ca.crt -trust enable
+    runmqakm -cert -list -db $db -pw "$PW"
+  # stdbuf: the samples write to a pipe, so stdout would otherwise be block-buffered
+  run-producer.sh: |
+    #!/bin/bash
+    # One amqsputc per message, so that the producer survives a failover: a put
+    # that fails (connection refused, interrupted...) is retried with the same
+    # number. Messages use the persistence of the queue (DEFPSIST(YES)), so
+    # Native HA replicates them. If a put is interrupted after the queue manager
+    # actually stored the message, the retry makes a duplicate, which the
+    # consumer reports; it is never a silent loss.
+    # PRODUCE_DELAY_MS: delay between two messages (default 2000).
+    delay_ms=${PRODUCE_DELAY_MS:-2000}
+    pause=$(printf '%d.%03d' $((delay_ms / 1000)) $((delay_ms % 1000)))
+    i=0
+    while true; do
+      i=$((i + 1))
+      until out=$(echo "Message $i" | /opt/mqm/samp/bin/amqsputc TEST.QUEUE MQNATIVEHA 2>&1) &&
+            ! grep -q "ended with reason code" <<< "$out"; do
+        echo "$(date +%T.%3N) put <Message $i> failed, retrying: $(grep 'reason code' <<< "$out" | tr '\n' ' ')"
+        sleep 1
+      done
+      echo "$(date +%T.%3N) put <Message $i>"
+      sleep "$pause"
+    done
+  run-consumer.sh: |
+    #!/bin/bash
+    # dmpmqmsg -I gets (destructively) the messages of the queue and writes them to
+    # stdout, with a fixed delay of CONSUME_DELAY_MS between two messages (0 = no
+    # delay): raise it to let messages pile up on the queue, e.g. before a failover.
+    # It stops when the queue stays empty for 15s (or when the connection is lost
+    # during a failover), hence the loop. Each message is printed with a timestamp
+    # (ms) and the awk filter checks the "Message <n>" counter for holes.
+    # -t 1: one unit of work per message. Without it dmpmqmsg commits nothing until
+    # the queue stays empty, and a failover rolls back (replays) everything read.
+    delay=()
+    [ "${CONSUME_DELAY_MS:-0}" -gt 0 ] && delay=(-D "$CONSUME_DELAY_MS")
+    while true; do
+      stdbuf -oL /opt/mqm/bin/dmpmqmsg -c -m MQNATIVEHA -I TEST.QUEUE -f stdout \
+          -dtHN -q -w 15 -t 1 "${delay[@]}" 2>&1
+      echo "dmpmqmsg ended (rc=$?), restarting" >&2
+      sleep 1
+    done |
+      grep --line-buffered -E '^(T |.*(AMQ|MQ[A-Z]+|rror|ended))' |
+      while IFS= read -r line; do echo "$(date +%T.%3N) $line"; done |
+      stdbuf -oL awk '
+        { print }
+        match($0, /T Message ([0-9]+)$/, m) {
+          ts = $1
+          n = m[1] + 0
+          if (!last && n != 1)     printf "%s CHECK: first message seen is %d, not 1\n", ts, n
+          if (n == 1 && last > 1)  print ts, "CHECK: counter back at 1 (producer restarted, or messages replayed)"
+          else if (last && n > last + 1)  printf "%s CHECK: GAP, expected %d got %d (%d missing)\n", ts, last + 1, n, n - last - 1
+          else if (last && n <= last)     printf "%s CHECK: DUPLICATE/OUT OF ORDER, expected %d got %d\n", ts, last + 1, n
+          last = n
+        }
+        { fflush() }'
+---
+# OutboundSNI: make the MQI client send the Route hostname as SNI (default is a
+# name derived from the channel), so the router forwards the connection to the
+# existing passthrough Route of the queue manager.
+# DefRecon: automatic reconnection for applications that do not request it
+# themselves (amqsputc).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hac-mqclient-ini
+  namespace: ibm-mq
+data:
+  mqclient.ini: |
+    SSL:
+      OutboundSNI=HOSTNAME
+    CHANNELS:
+      DefRecon=YES

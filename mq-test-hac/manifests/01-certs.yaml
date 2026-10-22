@@ -1,0 +1,76 @@
+# Client certificates for the producer and consumer. Signed by clients-ca-issuer;
+# the role is carried by the OU, which the queue manager's CHLAUTH SSLPEERMAP on
+# TEST.SVRCONN maps to app-producer / app-consumer (see ../../manifests/15-mqsc-configmap.yaml).
+#
+# Requires the secret `keystore-password` (see README) for the PKCS12 keystores.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: hac-producer
+  namespace: ibm-mq
+spec:
+  commonName: hac-producer
+  subject:
+    organizationalUnits:
+      - producer
+  secretName: hac-producer-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: clients-ca-issuer
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth
+  keystores:
+    pkcs12:
+      create: true
+      passwordSecretRef:
+        name: keystore-password
+        key: password
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: hac-consumer
+  namespace: ibm-mq
+spec:
+  commonName: hac-consumer
+  subject:
+    organizationalUnits:
+      - consumer
+  secretName: hac-consumer-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: clients-ca-issuer
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth
+  keystores:
+    pkcs12:
+      create: true
+      passwordSecretRef:
+        name: keystore-password
+        key: password
+---
+# Not a real client certificate: it only makes cert-manager publish the Servers
+# CA (ca.crt) in this namespace so the clients can trust the queue manager.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: hac-servers-ca
+  namespace: ibm-mq
+spec:
+  commonName: hac-servers-ca
+  secretName: hac-servers-ca-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: servers-ca-issuer
+  usages:
+    - client auth

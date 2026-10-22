@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hac-consumer
+  namespace: ibm-mq
+  labels:
+    app: hac-consumer
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: hac-consumer
+  template:
+    metadata:
+      labels:
+        app: hac-consumer
+    spec:
+      initContainers:
+        - name: build-kdb
+          image: icr.io/ibm-messaging/mq:latest
+          command: ["/bin/bash", "/script/build-kdb.sh"]
+          env:
+            - name: PW
+              valueFrom:
+                secretKeyRef:
+                  name: keystore-password
+                  key: password
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+            - name: client-cert
+              mountPath: /in
+              readOnly: true
+            - name: servers-ca
+              mountPath: /ca
+              readOnly: true
+            - name: script
+              mountPath: /script
+              readOnly: true
+      containers:
+        - name: consumer
+          image: icr.io/ibm-messaging/mq:latest
+          command: ["/bin/bash", "/scripts/run-consumer.sh"]
+          env:
+            - name: LICENSE
+              value: accept
+            # delay between two messages, in ms (0 = none)
+            - name: CONSUME_DELAY_MS
+              value: "2000"
+            - name: MQCHLLIB
+              value: /ccdt
+            - name: MQCHLTAB
+              value: ccdt.json
+            - name: MQSSLKEYR
+              value: /tls/key
+            - name: MQCLNTCF
+              value: /mqclient/mqclient.ini
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            - name: ccdt
+              mountPath: /ccdt
+              readOnly: true
+            - name: mqclient-ini
+              mountPath: /mqclient
+              readOnly: true
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: tls
+          emptyDir: {}
+        - name: client-cert
+          secret:
+            secretName: hac-consumer-tls
+        - name: servers-ca
+          secret:
+            secretName: hac-servers-ca-tls
+        - name: ccdt
+          configMap:
+            name: hac-ccdt
+        - name: mqclient-ini
+          configMap:
+            name: hac-mqclient-ini
+        - name: script
+          configMap:
+            name: hac-scripts

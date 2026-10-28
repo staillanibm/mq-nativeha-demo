@@ -1,0 +1,47 @@
+# Client certificates for mq-test-cli, issued by cert-manager. Same CA and
+# same OU as the ones of the pods (../../kube/01-certs.yaml), so the queue
+# manager's CHLAUTH SSLPEERMAP on TEST.SVRCONN maps them to app-producer /
+# app-consumer. ./certs.sh fills ${CLIENTS_ISSUER_KIND} / ${CLIENTS_ISSUER}
+# from .env, applies this file in the namespace OC_NAMESPACE and exports the
+# PEM files to certs/.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mq-test-producer
+spec:
+  commonName: mq-test-producer
+  subject:
+    organizationalUnits:
+      - producer
+  secretName: mq-test-producer-tls
+  issuerRef:
+    kind: ${CLIENTS_ISSUER_KIND}
+    name: ${CLIENTS_ISSUER}
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mq-test-consumer
+spec:
+  commonName: mq-test-consumer
+  subject:
+    organizationalUnits:
+      - consumer
+  secretName: mq-test-consumer-tls
+  issuerRef:
+    kind: ${CLIENTS_ISSUER_KIND}
+    name: ${CLIENTS_ISSUER}
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth

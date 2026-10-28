@@ -15,7 +15,8 @@ security policy, and the test clients are all deployed from YAML manifests via
 | Path | Contents |
 |---|---|
 | [`manifests/`](manifests/README.md) | The IBM MQ Native HA queue manager: operator subscription, cert-manager issuers/certificates, TLS, the `UserExternal` security policy, and the MQSC queue/channel/CHLAUTH/AUTHREC definitions that implement the IAM model. |
-| [`mq-test/`](mq-test/README.md) | A minimal Java JMS producer/consumer pair (shared code and image, role selected by env var) plus its build pipeline and deployment manifests, used to verify automatic client reconnection and message ordering through a failover. |
+| [`mq-test-java/`](mq-test-java/README.md) | A minimal Java JMS producer/consumer pair (shared code and image, role selected by env var) plus its build pipeline and deployment manifests (`kube/`) and a workstation/VM version ([`cli/`](mq-test-java/cli/README.md)), used to verify automatic client reconnection and message ordering through a failover. |
+| [`mq-test-hac/`](mq-test-hac/kube/README.md) | The same failover test with the sample programs shipped with IBM MQ instead of a custom application: `kube/` runs them on OpenShift, [`cli/`](mq-test-hac/cli/README.md) from a workstation or a VM. |
 
 Each directory has its own README with the full design rationale and
 step-by-step instructions — start there for details.
@@ -96,7 +97,7 @@ replace them before reuse.
 1. **Deploy the queue manager** — follow [`manifests/README.md`](manifests/README.md)
    to subscribe the operator, generate certificates, and apply the
    `QueueManager` CR. Wait until the queue manager is `Running`.
-2. **Run the validation clients** — follow [`mq-test/README.md`](mq-test/README.md)
+2. **Run the validation clients** — follow [`mq-test-java/README.md`](mq-test-java/README.md)
    to build the image in-cluster, deploy the producer/consumer, trigger a
    Native HA failover, and confirm message ordering is preserved.
 

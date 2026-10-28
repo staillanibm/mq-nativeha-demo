@@ -1,4 +1,4 @@
-# mq-test-hac / local
+# mq-test-hac / cli
 
 Two scripts that exercise an IBM MQ queue manager from a workstation or a VM, using the
 sample programs of the MQ client:
@@ -28,7 +28,8 @@ the scripts themselves never need to be edited.
     .
     ├── producer.sh
     ├── consumer.sh
-    ├── .env                    # queue manager, queue, rates, MQ client path
+    ├── .env.example            # template of .env (committed)
+    ├── .env                    # your copy: queue manager, queue, rates, MQ client path (git-ignored)
     └── config/
         ├── ccdt.json.template  # CCDT, filled from .env into ccdt.json
         ├── mqclient.ini        # OutboundSNI=HOSTNAME, DefRecon=YES
@@ -61,9 +62,14 @@ directory):
 
 `openssl` and `gawk` are also needed (`consumer.sh` uses `gawk` and `stdbuf`).
 
-## 2. Configure `.env`
+## 2. Create `.env`
 
-Set at least `MQ_HOME` (where the client is installed, `~/mqc` above, written as
+`.env` is not in the repository (it is git-ignored, it holds your host and paths).
+Create it from the template:
+
+    cp .env.example .env
+
+Then set at least `MQ_HOME` (where the client is installed, `~/mqc` above, written as
 an absolute path) and `MQ_HOST`, the host of the queue manager. On OpenShift it is
 the host of the queue manager Route:
 

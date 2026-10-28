@@ -1,4 +1,4 @@
-# mq-test — JMS Producer/Consumer for IBM MQ Native HA Validation
+# mq-test-java — JMS Producer/Consumer for IBM MQ Native HA Validation
 
 A minimal Java JMS client pair used to validate the IBM MQ Native HA queue
 manager deployed from the parent repo's `manifests/` directory: one process
@@ -8,6 +8,11 @@ that message ordering survives a Native HA leader failover.
 
 Both roles share the same code and the same container image; only the `ROLE`
 environment variable differs.
+
+Layout: `kube/` holds the OpenShift manifests (in-cluster deployment, described
+below), [`cli/`](cli/README.md) runs the same client from a workstation or a VM,
+and [`../mq-test-hac/`](../mq-test-hac/kube/README.md) does the same test with
+the MQ sample programs instead of this Java client.
 
 ## Design
 
@@ -27,7 +32,7 @@ manager's app channel (passthrough TLS on port 443). See
   properties — setting the trust/key store via `-D` flags has no effect; the
   `SSLSocketFactory` must be set explicitly on the `MQConnectionFactory`. The
   client certificate carries the role in its `OU` (`OU=producer` /
-  `OU=consumer`, see `manifests/03-certs.yaml`); the queue manager maps that
+  `OU=consumer`, see `kube/03-certs.yaml`); the queue manager maps that
   `OU` to the corresponding MQ identity, so the role is conveyed entirely by the
   certificate — the Java code is identical for both roles and never references
   the DN.
@@ -92,7 +97,7 @@ A multi-stage `Dockerfile`: `ubi9/openjdk-17` to run `mvn package`
 (`maven-assembly-plugin` produces a single `mq-test-jar-with-dependencies.jar`
 via `com.ibm.mq:com.ibm.mq.allclient`), then `ubi9/openjdk-17-runtime` for the
 final image. There is no local build step — the image is built **in-cluster**
-from a binary `BuildConfig` (`manifests/01-build.yaml`) that takes this
+from a binary `BuildConfig` (`kube/01-build.yaml`) that takes this
 directory as its Docker build context, so no local Maven or Docker
 installation is required.
 
@@ -105,11 +110,11 @@ manager described in the parent repo's `manifests/` directory is already
 ### 1. Create the namespace, build pipeline, and certificates
 
 ```sh
-cd mq-test
-oc apply -f manifests/00-namespace.yaml
-oc apply -f manifests/01-build.yaml
-oc apply -f manifests/02-secrets.yaml
-oc apply -f manifests/03-certs.yaml
+cd mq-test-java
+oc apply -f kube/00-namespace.yaml
+oc apply -f kube/01-build.yaml
+oc apply -f kube/02-secrets.yaml
+oc apply -f kube/03-certs.yaml
 ```
 
 Wait for the three client certificates to be issued:
@@ -146,7 +151,7 @@ Without this, the producer and consumer fail immediately on startup with
 
 ### 4. Point the apps at the queue manager and deploy
 
-Edit `manifests/04-config.yaml` if needed — in particular `MQ_HOST` (the
+Edit `kube/04-config.yaml` if needed — in particular `MQ_HOST` (the
 queue manager's Route hostname) and `MQ_QMGR` (the queue manager name) must
 match your cluster:
 
@@ -157,9 +162,9 @@ oc get route mq-nativeha-ibm-mq-qm -n ibm-mq -o jsonpath='{.spec.host}'
 Then:
 
 ```sh
-oc apply -f manifests/04-config.yaml
-oc apply -f manifests/05-producer.yaml
-oc apply -f manifests/06-consumer.yaml
+oc apply -f kube/04-config.yaml
+oc apply -f kube/05-producer.yaml
+oc apply -f kube/06-consumer.yaml
 ```
 
 ### 5. Confirm both are connected and exchanging messages

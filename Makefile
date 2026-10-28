@@ -20,7 +20,7 @@ QM_LABEL      ?= app.kubernetes.io/instance=mq-nativeha
 
 # --- Tests ------------------------------------------------------------------
 TEST_NS       ?= mq-test
-TEST_DIR      ?= mq-test/manifests
+TEST_DIR      ?= mq-test-java/kube
 TEST_LABEL    ?= app in (mq-test-producer,mq-test-consumer)
 
 .DEFAULT_GOAL := help
@@ -99,8 +99,8 @@ test-deploy: ## Apply all mq-test manifests (namespace, build, certs, config, ap
 	done
 
 .PHONY: test-build
-test-build: ## Build the client image in-cluster from the mq-test/ directory
-	$(KUBECTL) start-build mq-test -n $(TEST_NS) --from-dir=mq-test --follow
+test-build: ## Build the client image in-cluster from the mq-test-java/ directory
+	$(KUBECTL) start-build mq-test -n $(TEST_NS) --from-dir=mq-test-java --follow
 
 .PHONY: test-restart
 test-restart: ## Restart producer/consumer (reload certs/keystore after re-issue)

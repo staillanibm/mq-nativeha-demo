@@ -98,7 +98,7 @@ only requires issuing a certificate with the right `OU`, with no MQSC change and
 no queue manager restart. The certificates
 themselves are signed by `clients-ca-issuer` (`03-clients-ca-cert.yaml`; the
 client certificates for the producer/consumer test apps are not included in
-this directory — see the `mq-test` Java client manifests). The queue manager
+this directory — see the `mq-test-java` client manifests). The queue manager
 trusts that CA via `13-clients-ca-trust.yaml` and `spec.pki.trust` in
 `16-queuemanager.yaml`.
 

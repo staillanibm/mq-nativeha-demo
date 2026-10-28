@@ -1,0 +1,18 @@
+{
+  "channel": [
+    {
+      "name": "TEST.SVRCONN",
+      "type": "clientConnection",
+      "clientConnection": {
+        "connection": [
+          { "host": "mq-nativeha-ibm-mq-qm-ibm-mq.apps.itz-iscex5.infra01-lb.fra02.techzone.ibm.com", "port": 443 }
+        ],
+        "queueManager": "MQNATIVEHA"
+      },
+      "transmissionSecurity": {
+        "cipherSpecification": "ANY_TLS12_OR_HIGHER",
+        "certificateLabel": "mqclient"
+      }
+    }
+  ]
+}

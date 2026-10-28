@@ -57,8 +57,14 @@ public final class Consumer {
                 long gapMillis = now - lastReceiveAt;
                 lastReceiveAt = now;
 
-                long seq = message.getLongProperty("seq");
                 String body = (message instanceof TextMessage tm) ? tm.getText() : message.toString();
+
+                if (!message.propertyExists("seq")) {
+                    log("SKIPPED_NO_SEQ body=" + body);
+                    session.commit();
+                    continue;
+                }
+                long seq = message.getLongProperty("seq");
 
                 checkOrdering(seq);
 

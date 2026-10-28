@@ -120,4 +120,4 @@ producer side, is normal (at-least-once delivery):
 - `hac-mqclient-ini` sets `OutboundSNI=HOSTNAME` (without it the MQI client sends
   a channel-derived SNI that the router has no Route for) and `DefRecon=YES`.
 
-To run the same producer and consumer from a workstation or a VM instead, see [`../local`](../local/README.md).
+To run the same producer and consumer from a workstation or a VM instead, see [`../cli`](../cli/README.md). The same test with a custom Java client is in [`../../mq-test-java`](../../mq-test-java/README.md).

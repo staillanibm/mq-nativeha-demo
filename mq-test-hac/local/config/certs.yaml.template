@@ -1,0 +1,47 @@
+# Client certificates for the workstation or VM, issued by cert-manager. Same CA and
+# same OU as the ones of the pods (../../kube/01-certs.yaml), so the queue
+# manager's CHLAUTH SSLPEERMAP on TEST.SVRCONN maps them to app-producer /
+# app-consumer. ./get-certs.sh fills ${CLIENTS_ISSUER_KIND} / ${CLIENTS_ISSUER}
+# from ../.env, applies this file in the namespace NS and exports the PEM files to
+# ./certs.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: local-producer
+spec:
+  commonName: local-producer
+  subject:
+    organizationalUnits:
+      - producer
+  secretName: local-producer-tls
+  issuerRef:
+    kind: ${CLIENTS_ISSUER_KIND}
+    name: ${CLIENTS_ISSUER}
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: local-consumer
+spec:
+  commonName: local-consumer
+  subject:
+    organizationalUnits:
+      - consumer
+  secretName: local-consumer-tls
+  issuerRef:
+    kind: ${CLIENTS_ISSUER_KIND}
+    name: ${CLIENTS_ISSUER}
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth

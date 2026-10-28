@@ -1,4 +1,4 @@
-# mq-test-hac
+# mq-test-hac / kube
 
 Failover test of the Native HA queue manager (`ibm-mq/mq-nativeha`) using the
 sample programs shipped with IBM MQ, instead of a custom application:
@@ -22,11 +22,11 @@ on `TEST.SVRCONN` (client certificate `OU=producer` / `OU=consumer`).
 
 ## Deploy
 
-Everything is deployed in the queue manager namespace, `ibm-mq`:
+Everything is deployed in the queue manager namespace, `ibm-mq`, from this directory:
 
     oc -n ibm-mq create secret generic keystore-password \
       --from-literal=password="$(openssl rand -hex 12)"
-    oc apply -f manifests/
+    oc apply -f .
 
 ## Run the failover test
 
@@ -119,3 +119,5 @@ producer side, is normal (at-least-once delivery):
   `hac-scripts` ConfigMap, which also holds the launchers of the samples).
 - `hac-mqclient-ini` sets `OutboundSNI=HOSTNAME` (without it the MQI client sends
   a channel-derived SNI that the router has no Route for) and `DefRecon=YES`.
+
+To run the same producer and consumer from a workstation or a VM instead, see [`../local`](../local/README.md).

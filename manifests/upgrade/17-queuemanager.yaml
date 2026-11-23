@@ -1,0 +1,77 @@
+apiVersion: mq.ibm.com/v1beta1
+kind: QueueManager
+metadata:
+  name: mq-nativeha
+  namespace: ibm-mq
+spec:
+  imagePullSecrets:
+    - name: ibm-entitlement-key
+  license:
+    accept: true
+    # MQ 10.0 license: IBM MQ Advanced for Non-Production Environment 10.0.
+    # Native HA is included in MQ Advanced: the Native HA/CRR add-on
+    # (additionalLicenses: L-KFCR-53UGK9) is only needed with the base "IBM MQ"
+    # license L-MKDD-7KHY2Q.
+    license: L-UMVX-XYNRAD
+    use: NonProduction
+  queueManager:
+    # 10.0.0.5-r1 image digest, from the ibm-mq 4.0.4 CASE
+    # (~/.ibm-pak/data/mirror/ibm-mq/4.0.4/images-mapping.txt). It MUST change
+    # together with spec.version: if the 9.4.5.1 digest were left here, the pods
+    # would keep running 9.4. Removing the field also works: the operator then
+    # uses its own default image for spec.version.
+    image: cp.icr.io/cp/ibm-mqadvanced-server@sha256:c02267378a51bfa290c30fdf58834b4b5e91a99f23a340579bc20c2760864e6f
+    # Underlying MQ queue manager name, kept distinct from metadata.name
+    # because it doesn't have to follow Kubernetes naming rules (e.g. it can
+    # use uppercase letters, which metadata.name cannot).
+    name: MQNATIVEHA
+    availability:
+      type: NativeHA
+      tls:
+        secretName: mq-nativeha-server-tls
+    mqsc:
+      - configMap:
+          name: mq-nativeha-mqsc
+          items:
+            - app-definitions.mqsc
+    ini:
+      - configMap:
+          name: mq-nativeha-ini
+          items:
+            - qm.ini
+  pki:
+    keys:
+      - name: default
+        secret:
+          secretName: mq-nativeha-server-tls
+          items:
+            - tls.key
+            - tls.crt
+            - ca.crt
+    trust:
+      - name: clientsca
+        secret:
+          secretName: clients-ca-trust-tls
+          items:
+            - ca.crt
+  # One-way migration: the queue manager data is migrated on first start and
+  # cannot be moved back to 9.4 (the operator also rejects any version
+  # downgrade).
+  version: 10.0.0.5-r1
+  # MQ Console / REST API. License type "MQ" (not Cloud Pak for Integration)
+  # defaults console/authentication providers to "integration-keycloak", which
+  # has nothing to authenticate against here — must be set to "manual" and
+  # paired with the basicRegistry in 16-mqweb-configmap.yaml, otherwise every
+  # login fails with "No UserRegistry implementation service is available".
+  web:
+    enabled: true
+    console:
+      authentication:
+        provider: manual
+      authorization:
+        provider: manual
+    manualConfig:
+      configMap:
+        name: mq-nativeha-mqwebuser
+    route:
+      enabled: true

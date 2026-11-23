@@ -1,0 +1,18 @@
+# Subscription moved to channel v4.0-sc2 — second half of the replacement for
+# ../00-mq-operator-csv.yaml. Apply only once 00a-mq-catalog-source.yaml is
+# READY and serves the v4.0-sc2 channel.
+#
+# Moving from channel v3.9 to v4.0-sc2 is what triggers the operator upgrade.
+# With installPlanApproval: Automatic, OLM upgrades the operator as soon as
+# the channel is changed.
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: ibm-mq
+  namespace: openshift-operators
+spec:
+  channel: v4.0-sc2
+  installPlanApproval: Automatic
+  name: ibm-mq
+  source: ibmmq-operator-catalogsource
+  sourceNamespace: openshift-marketplace

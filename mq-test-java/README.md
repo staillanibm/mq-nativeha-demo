@@ -101,6 +101,99 @@ from a binary `BuildConfig` (`kube/01-build.yaml`) that takes this
 directory as its Docker build context, so no local Maven or Docker
 installation is required.
 
+## Building without Internet access (air-gapped)
+
+The in-cluster build above needs two things from the Internet:
+
+| Step                    | Fetched from                                   | What                                                                 |
+|-------------------------|------------------------------------------------|----------------------------------------------------------------------|
+| `FROM` (both stages)    | `registry.access.redhat.com`                   | `ubi9/openjdk-17` (build) and `ubi9/openjdk-17-runtime` (runtime)    |
+| `RUN mvn package`       | Maven Central (`repo.maven.apache.org`)        | the Maven plugins and `com.ibm.mq:com.ibm.mq.allclient`              |
+
+On a cluster without Internet access, the build fails with an error such as
+`Unknown host repo.maven.apache.org` or an image pull error. Pick one of the
+options below; the rest of the [test procedure](#test-procedure) is unchanged.
+
+### Base images
+
+All options need at least `ubi9/openjdk-17-runtime` (option B also needs
+`ubi9/openjdk-17`). If the cluster already mirrors `registry.access.redhat.com`
+(`ImageTagMirrorSet`), there is nothing to do. Otherwise copy the images into a
+registry the cluster can reach, from a machine that can reach both:
+
+```sh
+skopeo copy --all \
+  docker://registry.access.redhat.com/ubi9/openjdk-17-runtime:latest \
+  docker://registry.example.internal/ubi9/openjdk-17-runtime:latest
+```
+
+and replace `registry.access.redhat.com` with your registry in the `FROM`
+lines of the `Dockerfile` you use.
+
+### Option A — prebuilt jar, no Maven in the cluster (recommended)
+
+The fat jar is attached to the GitHub release
+[`mq-test-java-v1.0.0`](https://github.com/staillanibm/mq-nativeha-demo/releases/tag/mq-test-java-v1.0.0)
+(`mq-test-1.0.0.jar` and its `.sha256`). Download both on a connected machine,
+or build the jar yourself there with `mvn -q package` (it produces
+`target/mq-test-jar-with-dependencies.jar`), and bring the jar to a
+workstation logged into the cluster. Then build a runtime-only image with the
+same `BuildConfig`:
+
+```sh
+shasum -a 256 -c mq-test-1.0.0.jar.sha256
+
+mkdir airgap-build
+cp mq-test-1.0.0.jar airgap-build/mq-test.jar
+cat > airgap-build/Dockerfile <<'EOF'
+FROM registry.access.redhat.com/ubi9/openjdk-17-runtime:latest
+WORKDIR /app
+COPY mq-test.jar ./mq-test.jar
+ENTRYPOINT ["java", "-jar", "mq-test.jar"]
+EOF
+
+oc start-build mq-test -n mq-test --from-dir=airgap-build --follow
+```
+
+`oc start-build --from-dir` uploads the directory from the workstation to the
+cluster, so only the runtime base image has to be reachable from the cluster.
+This command replaces [step 2](#2-build-the-image).
+
+### Option B — internal Maven repository (Nexus, Artifactory)
+
+If an internal repository proxies Maven Central, keep the source build and point
+Maven at it. Create `settings.xml` in this directory:
+
+```xml
+<settings>
+  <mirrors>
+    <mirror>
+      <id>internal</id>
+      <mirrorOf>*</mirrorOf>
+      <url>https://nexus.example.internal/repository/maven-public/</url>
+    </mirror>
+  </mirrors>
+  <!-- Only if the repository requires authentication:
+  <servers>
+    <server><id>internal</id><username>...</username><password>...</password></server>
+  </servers>
+  -->
+</settings>
+```
+
+and change the build stage of the `Dockerfile` to use it:
+
+```dockerfile
+COPY --chown=185:0 settings.xml .
+RUN mvn -q -B -s settings.xml package
+```
+
+If the cluster reaches the Internet through an HTTP proxy instead, keep the
+`Dockerfile` unchanged and pass the proxy to Maven:
+`RUN mvn -q -B -Dhttps.proxyHost=<host> -Dhttps.proxyPort=<port> package`.
+Then run [step 2](#2-build-the-image) as usual.
+
+
 ## Test procedure
 
 All commands assume `oc` is logged into the target cluster and the queue
@@ -128,6 +221,9 @@ oc wait --for=condition=Ready certificate/mq-test-producer certificate/mq-test-c
 ```sh
 oc start-build mq-test -n mq-test --from-dir=. --follow
 ```
+
+Without Internet access from the cluster, see
+[Building without Internet access](#building-without-internet-access-air-gapped).
 
 This must be re-run any time the Java source or `Dockerfile` changes — the
 running Deployments use `imagePullPolicy: Always` but only pick up a new image
